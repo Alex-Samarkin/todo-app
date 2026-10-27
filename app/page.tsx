@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { supabase } from "../lib/supabase";
 
 type Task = {
@@ -17,13 +18,23 @@ const statusNames: Record<string, string> = {
   "done": "Готово",
 };
 
+const statusOptions: Task["status"][] = [
+  "todo",
+  "in progress",
+  "done",
+];
+
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  // Признак выполнения добавления: блокирует кнопку и меняет её подпись.
   const [addingEmpty, setAddingEmpty] = useState(false);
+  const [addingFilled, setAddingFilled] = useState(false);
+
+  const [formTitle, setFormTitle] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formStatus, setFormStatus] = useState<Task["status"]>("todo");
 
   async function loadTasks() {
     setLoading(true);
@@ -48,14 +59,9 @@ export default function Home() {
   }, []);
 
   async function addEmptyTask() {
-    // Сразу показываем начало операции и очищаем предыдущую ошибку.
     setAddingEmpty(true);
     setError(null);
 
-    // Отправляем через клиент Supabase запрос на создание строки в tasks.
-    // «Пустая» запись содержит пустое название, отсутствие описания (null)
-    // и начальный статус todo. Поля id и created_at не передаём:
-    // для их автоматического заполнения в базе должны быть заданы значения по умолчанию.
     const { data, error } = await supabase
       .from("tasks")
       .insert({
@@ -63,31 +69,61 @@ export default function Home() {
         description: null,
         status: "todo",
       })
-      // Просим API вернуть созданную строку, включая заполненные базой поля.
       .select()
-      // Ожидаем одну строку: data будет объектом задачи, а не массивом.
-      // await приостанавливает эту функцию до получения ответа API.
       .single();
 
-    // Ответ получен — возвращаем кнопке обычное состояние.
     setAddingEmpty(false);
 
     if (error) {
-      // При ошибке показываем сообщение и не добавляем задачу в локальный список.
-      // Ошибка может относиться как к вставке, так и к возврату строки через select.
       setError(error.message);
       return;
     }
 
     if (data) {
-      // Приведение типа сообщает TypeScript ожидаемую структуру ответа;
-      // оно не преобразует данные и не проверяет их во время выполнения.
       const newTask = data as Task;
-      // Созданная строка уже пришла из базы. Теперь добавляем её в начало
-      // актуального массива React, сохраняя остальные задачи через ...previousTasks.
-      // setTasks вызывает повторный рендер, и запись появляется в таблице
-      // без перезагрузки страницы и повторного запроса всего списка.
       setTasks((previousTasks) => [newTask, ...previousTasks]);
+    }
+  }
+
+  async function addFilledTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const title = formTitle.trim();
+
+    if (!title) {
+      return;
+    }
+
+    const description =
+      formDescription.trim() === "" ? null : formDescription.trim();
+
+    setAddingFilled(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title,
+        description,
+        status: formStatus,
+      })
+      .select()
+      .single();
+
+    setAddingFilled(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    if (data) {
+      const newTask = data as Task;
+      setTasks((previousTasks) => [newTask, ...previousTasks]);
+
+      setFormTitle("");
+      setFormDescription("");
+      setFormStatus("todo");
     }
   }
 
@@ -121,13 +157,10 @@ export default function Home() {
     <main>
       <h1>Список дел</h1>
       <p className="muted">
-        Этап 4: просмотр, удаление и добавление пустой записи.
+        Этап 5: просмотр, удаление, добавление пустой и заполненной записи.
       </p>
 
       <div className="toolbar">
-        {/* При клике запускаем addEmptyTask. Пока ожидаем ответ API,
-            disabled защищает кнопку от повторного нажатия, а подпись
-            «Добавление…» показывает, что операция выполняется. */}
         <button
           className="btn"
           onClick={addEmptyTask}
@@ -136,6 +169,55 @@ export default function Home() {
           {addingEmpty ? "Добавление…" : "Добавить пустую запись"}
         </button>
       </div>
+
+      <form className="form" onSubmit={addFilledTask}>
+        <h2>Добавить заполненную запись</h2>
+
+        <label>
+          <span>Задача</span>
+          <input
+            value={formTitle}
+            onChange={(event) => setFormTitle(event.target.value)}
+            placeholder="Например: подготовить лекцию"
+            required
+          />
+        </label>
+
+        <label>
+          <span>Описание</span>
+          <textarea
+            value={formDescription}
+            onChange={(event) => setFormDescription(event.target.value)}
+            placeholder="Необязательно"
+          />
+        </label>
+
+        <label>
+          <span>Статус</span>
+          <select
+            value={formStatus}
+            onChange={(event) =>
+              setFormStatus(event.target.value as Task["status"])
+            }
+          >
+            {statusOptions.map((status) => (
+              <option key={status} value={status}>
+                {statusNames[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="form-actions">
+          <button
+            type="submit"
+            className="btn primary"
+            disabled={addingFilled}
+          >
+            {addingFilled ? "Сохранение…" : "Добавить заполненную запись"}
+          </button>
+        </div>
+      </form>
 
       {loading && <p>Загрузка…</p>}
       {error && <p className="error">Ошибка: {error}</p>}

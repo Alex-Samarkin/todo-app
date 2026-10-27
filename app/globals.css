@@ -114,3 +114,54 @@ button:disabled {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+.form {
+  background: #ffffff;
+  border: 1px solid #e2e5ea;
+  padding: 16px;
+  margin-bottom: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.form h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.form input,
+.form textarea,
+.form select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.form textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn.primary {
+  border-color: #b7c6f8;
+  color: #1d39bc;
+  background: #f0f4ff;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #e5edff;
+}
