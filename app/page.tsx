@@ -432,7 +432,11 @@ export default function Home() {
                     <td>
                       {new Date(task.created_at).toLocaleString("ru-RU")}
                     </td>
-                    <td>{statusNames[task.status]}</td>
+                    <td>
+                      <span className="status-badge" data-status={task.status}>
+                        {statusNames[task.status]}
+                      </span>
+                    </td>
                     <td>
                       <div className="row-actions">
                         {/* Передаём задачу в startEditing только по клику.
@@ -464,6 +468,35 @@ export default function Home() {
           </tbody>
         </table>
       )}
+
+      {!loading && !error && tasks.length > 0 && (
+        <section className="cards-section">
+          <h2>Карточки</h2>
+
+          <div className="cards">
+            {tasks.map((task) => (
+              <article key={`card-${task.id}`} className="card">
+                <h3>
+                  {task.title || <span className="muted">Без названия</span>}
+                </h3>
+
+                <p className={task.description ? "" : "muted"}>
+                  {task.description || "Без описания"}
+                </p>
+
+                <p className="card-meta">
+                  Создано: {new Date(task.created_at).toLocaleString("ru-RU")}
+                </p>
+
+                <p className="card-meta status-badge" data-status={task.status}>
+                  Статус: {statusNames[task.status]}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+ 
     </main>
   );
 }
