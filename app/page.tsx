@@ -12,13 +12,15 @@ type Task = {
   status: "todo" | "in progress" | "done";
 };
 
-const statusNames: Record<string, string> = {
+type TaskStatus = Task["status"];
+
+const statusNames: Record<TaskStatus, string> = {
   "todo": "К выполнению",
   "in progress": "В работе",
   "done": "Готово",
 };
 
-const statusOptions: Task["status"][] = [
+const statusOptions: TaskStatus[] = [
   "todo",
   "in progress",
   "done",
@@ -28,13 +30,25 @@ export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [addingEmpty, setAddingEmpty] = useState(false);
   const [addingFilled, setAddingFilled] = useState(false);
 
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
-  const [formStatus, setFormStatus] = useState<Task["status"]>("todo");
+  const [formStatus, setFormStatus] = useState<TaskStatus>("todo");
+
+  // ID строки, открытой для редактирования. null — все строки в режиме просмотра.
+  // Один ID и один набор полей ниже позволяют редактировать одну задачу за раз.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  // Черновик: ввод пользователя хранится отдельно от сохранённых задач в tasks.
+  // Пока не нажато «Сохранить», изменения этих полей не отправляются в базу.
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] = useState<TaskStatus>("todo");
+  // Показывает ожидание ответа на запрос сохранения и блокирует кнопки строки.
+  const [savingEdit, setSavingEdit] = useState(false);
 
   async function loadTasks() {
     setLoading(true);
@@ -127,6 +141,102 @@ export default function Home() {
     }
   }
 
+  function startEditing(task: Task) {
+    // Кнопка «Редактировать» передаёт сюда задачу из текущего массива tasks.
+    // Запоминаем её ID и копируем сохранённые значения в отдельный черновик.
+    // Изменение editingId переключит JSX этой строки с текста на поля ввода.
+    setEditingId(task.id);
+    setEditTitle(task.title);
+    // textarea работает со строкой, поэтому отсутствие описания (null)
+    // представляем в поле как пустую строку.
+    setEditDescription(task.description ?? "");
+    setEditStatus(task.status);
+  }
+
+  function cancelEditing() {
+    // Закрываем режим редактирования и очищаем черновик.
+    // Запроса к базе нет, tasks не меняется: несохранённый ввод отбрасывается.
+    // Эта же функция вызывается после успешного сохранения для закрытия полей.
+    setEditingId(null);
+    setEditTitle("");
+    setEditDescription("");
+    setEditStatus("todo");
+  }
+
+  async function saveEditing() {
+    // Защита на случай вызова, когда ни одна задача не редактируется.
+    if (editingId === null) {
+      return;
+    }
+
+    // Удаляем пробелы по краям. Пустое или состоящее из пробелов название
+    // не сохраняем: проверка дублирует условие блокировки кнопки в интерфейсе.
+    const title = editTitle.trim();
+
+    if (!title) {
+      return;
+    }
+
+    // Для базы пустое описание представляем как null, а заполненное —
+    // как строку без пробелов по краям. Сам черновик при этом не изменяется.
+    const description =
+      editDescription.trim() === "" ? null : editDescription.trim();
+
+    // Включаем индикацию сохранения и убираем предыдущее сообщение об ошибке.
+    setSavingEdit(true);
+    setError(null);
+
+    // Путь данных: поля черновика → API Supabase → обновлённая строка в базе
+    // → ответ data → замена задачи в tasks → повторный рендер таблицы.
+    // update передаёт только изменяемые поля; id и created_at здесь не задаются.
+    // Доступ к обновлению и чтению результата определяется правами базы и RLS.
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({
+        title,
+        description,
+        status: editStatus,
+      })
+      // Ограничиваем обновление задачей с выбранным ID.
+      .eq("id", editingId)
+      // Запрашиваем фактическую строку после обновления, чтобы использовать
+      // ответ базы, а не самостоятельно собранный объект из полей черновика.
+      .select()
+      // Ожидаем ровно одну строку в виде объекта. Если строка не вернулась,
+      // single сообщит об ошибке. await ждёт завершения запроса к API.
+      .single();
+
+    // Ответ получен — снимаем признак выполняющегося сохранения.
+    setSavingEdit(false);
+
+    if (error) {
+      // При ошибке не меняем tasks и не очищаем черновик.
+      // Ошибка может относиться к обновлению либо к чтению результата.
+      // В текущем JSX условие !error скрывает таблицу при наличии ошибки.
+      setError(error.message);
+      return;
+    }
+
+    if (data) {
+      // Приведение типа помогает TypeScript; проверки данных во время
+      // выполнения оно не делает.
+      const updatedTask = data as Task;
+
+      // Функциональная форма получает актуальный массив задач.
+      // map создаёт новый массив: задачу с совпадающим ID заменяем ответом
+      // базы, остальные оставляем прежними. Повторной загрузки списка нет.
+      // До этого момента сохранённая задача в локальном tasks не менялась.
+      setTasks((previousTasks) =>
+        previousTasks.map((task) =>
+          task.id === updatedTask.id ? updatedTask : task
+        )
+      );
+
+      // После обновления списка закрываем редактор и сбрасываем черновик.
+      cancelEditing();
+    }
+  }
+
   async function deleteTask(id: number) {
     const confirmed = window.confirm("Удалить эту запись?");
     if (!confirmed) {
@@ -157,7 +267,7 @@ export default function Home() {
     <main>
       <h1>Список дел</h1>
       <p className="muted">
-        Этап 5: просмотр, удаление, добавление пустой и заполненной записи.
+        Этап 6: просмотр, удаление, добавление и редактирование задач.
       </p>
 
       <div className="toolbar">
@@ -197,7 +307,7 @@ export default function Home() {
           <select
             value={formStatus}
             onChange={(event) =>
-              setFormStatus(event.target.value as Task["status"])
+              setFormStatus(event.target.value as TaskStatus)
             }
           >
             {statusOptions.map((status) => (
@@ -239,27 +349,116 @@ export default function Home() {
           <tbody>
             {tasks.map((task) => (
               <tr key={task.id}>
-                <td>
-                  {task.title || <span className="muted">Без названия</span>}
-                </td>
-                <td>
-                  {task.description || <span className="muted">—</span>}
-                </td>
-                <td>
-                  {new Date(task.created_at).toLocaleString("ru-RU")}
-                </td>
-                <td>
-                  {statusNames[task.status] ?? task.status}
-                </td>
-                <td>
-                  <button
-                    className="btn danger"
-                    onClick={() => deleteTask(task.id)}
-                    disabled={deletingId === task.id}
-                  >
-                    {deletingId === task.id ? "Удаление…" : "Удалить"}
-                  </button>
-                </td>
+                {/* Для выбранной задачи показываем поля черновика,
+                    для остальных — сохранённые значения из tasks. */}
+                {editingId === task.id ? (
+                  <>
+                    <td>
+                      {/* Управляемое поле: value берётся из состояния React,
+                          onChange записывает каждый ввод в editTitle.
+                          Аналогично работают описание и выбор статуса ниже.
+                          Эти обработчики не отправляют запросов в базу. */}
+                      <input
+                        className="table-input"
+                        value={editTitle}
+                        onChange={(event) =>
+                          setEditTitle(event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <textarea
+                        className="table-input"
+                        value={editDescription}
+                        onChange={(event) =>
+                          setEditDescription(event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      {/* Дата создания остаётся только для просмотра. */}
+                      {new Date(task.created_at).toLocaleString("ru-RU")}
+                    </td>
+                    <td>
+                      <select
+                        className="table-input"
+                        value={editStatus}
+                        onChange={(event) =>
+                          setEditStatus(event.target.value as TaskStatus)
+                        }
+                      >
+                        {statusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {statusNames[status]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        {/* Сохранение запускается по клику. Во время запроса
+                            и при пустом названии кнопка недоступна. */}
+                        <button
+                          className="btn primary"
+                          onClick={saveEditing}
+                          disabled={
+                            savingEdit || editTitle.trim() === ""
+                          }
+                        >
+                          {savingEdit ? "Сохранение…" : "Сохранить"}
+                        </button>
+                        {/* Отмена отбрасывает черновик. Во время сохранения
+                            она отключена, чтобы не закрыть редактор до ответа. */}
+                        <button
+                          className="btn"
+                          onClick={cancelEditing}
+                          disabled={savingEdit}
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td>
+                      {task.title || (
+                        <span className="muted">Без названия</span>
+                      )}
+                    </td>
+                    <td>
+                      {task.description || <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      {new Date(task.created_at).toLocaleString("ru-RU")}
+                    </td>
+                    <td>{statusNames[task.status]}</td>
+                    <td>
+                      <div className="row-actions">
+                        {/* Передаём задачу в startEditing только по клику.
+                            Пока открыта одна строка, начать редактирование
+                            другой нельзя — иначе общий черновик заменился бы. */}
+                        <button
+                          className="btn primary"
+                          onClick={() => startEditing(task)}
+                          disabled={editingId !== null}
+                        >
+                          Редактировать
+                        </button>
+                        <button
+                          className="btn danger"
+                          onClick={() => deleteTask(task.id)}
+                          disabled={
+                            deletingId === task.id ||
+                            editingId === task.id
+                          }
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>

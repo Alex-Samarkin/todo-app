@@ -67,19 +67,67 @@ h1 { font-size: 26px; margin-bottom: 8px; }
 
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
   background: #fff;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+  color-scheme: light;
 }
 
 th, td {
-  border: 1px solid #e2e5ea;
-  padding: 10px 12px;
+  border: 0;
+  padding: 16px;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
   font-size: 14px;
+  line-height: 1.5;
 }
 
-th { background: #eef1f5; }
+th {
+  background: #edf2f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #dce4ef;
+}
+
+tbody tr + tr td {
+  border-top: 1px solid #e8edf3;
+}
+
+tbody td {
+  transition: background-color 150ms ease;
+  overflow-wrap: anywhere;
+}
+
+tbody tr:nth-child(even) td {
+  background: #fafbfd;
+}
+
+tbody tr:hover td,
+tbody tr:focus-within td {
+  background: #f0f5ff;
+}
+
+tbody td:first-child {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+th:last-child {
+  text-align: center;
+}
+
+.table-input:focus-visible,
+.row-actions .btn:focus-visible {
+  outline: 2px solid #4f6fe8;
+  outline-offset: 3px;
+}
 
 .muted { color: #6b7280; }
 .error { color: #b42318; }
@@ -164,4 +212,31 @@ button:disabled {
 
 .btn.primary:hover:not(:disabled) {
   background: #e5edff;
+}
+
+.table-input {
+  width: 100%;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+textarea.table-input {
+  min-height: 48px;
+  resize: vertical;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.row-actions .btn {
+  width: 140px;
+  flex: 0 0 140px;
+  text-align: center;
 }
