@@ -83,3 +83,27 @@ th { background: #eef1f5; }
 
 .muted { color: #6b7280; }
 .error { color: #b42318; }
+
+button {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn.danger {
+  border-color: #f0b2ab;
+  color: #b42318;
+  background: #fff7f6;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: #fdecea;
+}
