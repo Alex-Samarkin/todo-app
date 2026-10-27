@@ -107,3 +107,10 @@ button:disabled {
 .btn.danger:hover:not(:disabled) {
   background: #fdecea;
 }
+
+.toolbar {
+  margin: 16px 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
